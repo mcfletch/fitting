@@ -1,0 +1,15 @@
+dist
+.*\.egg-info
+.*\.pyc$
+.*\.orig$
+.*\.e4p
+\.eric4project
+\.ropeproject
+\.coverage*
+build
+*/dist/*.tar.gz
+*/dist/*.gpg
+*.pyc
+*.egg-info
+*.e4?
+
