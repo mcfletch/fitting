@@ -1,0 +1,10 @@
+{% extends 'layout.html' %}
+{% load url from future %}
+{% block title %}{{request.settings.SKU_NAME}} {{object}}{%endblock%}
+{% block content %}
+<h1>{{request.settings.SKU_NAME}} {{object}}</h1>
+{% endblock %}
+{% block page_styles %}
+{% endblock %}
+{% block page_scripts %}
+{% endblock %}

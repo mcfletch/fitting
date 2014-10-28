@@ -1,0 +1,5 @@
+recursive-include fitting/static/js *.js
+recursive-include fitting/static/img *.png *.jpg *.gif *.ico
+recursive-include fitting/static/css *.css 
+recursive-include fitting/templates *
+recursive-include fitting/fixtures *
