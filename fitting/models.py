@@ -18,10 +18,10 @@ class Fitting(models.Model):
         unique_together = [
             ('fitting_type','source_id','source_type', 'sink_id', 'sink_type'), 
         ]
-    DEFAULT_PIPE_TYPE = 1
+    DEFAULT_FITTING_TYPE = 1
     fitting_type = models.IntegerField(
         verbose_name='Pipe Type', 
-        default = DEFAULT_PIPE_TYPE,
+        default = DEFAULT_FITTING_TYPE,
         db_index=True,
     )
     source_type = models.ForeignKey(
@@ -51,77 +51,108 @@ class Fitting(models.Model):
         'sink_type', 'sink_id', 
     )
     @classmethod
-    def sources(cls, instance,  pipe_type=None):
-        """Retrieve all currently fitted sources"""
+    def sources(cls, instance,  fitting_type=None):
+        """Retrieve fittings for all currently fitted sources"""
+        ct = ContentType.objects.get_for_model(instance)
         return cls.objects.filter(
-            sink=instance,
-            fitting_type=pipe_type or cls.DEFAULT_PIPE_TYPE 
+            sink_type=ct,
+            sink_id = instance.pk, 
+            fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE 
         )
     @classmethod
-    def sinks(cls, instance, pipe_type=None):
-        """Retrieve all current fitted sinks"""
+    def sinks(cls, instance, fitting_type=None):
+        """Retrieve fittings for all current fitted sinks"""
+        ct = ContentType.objects.get_for_model(instance)
         return cls.objects.filter(
-            source=instance, 
-            fitting_type=pipe_type or cls.DEFAULT_PIPE_TYPE 
+            source_type=ct,
+            source_id = instance.pk, 
+            fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE 
         )
     @classmethod 
-    def mapping(cls, pipe_type=None):
+    def mapping(cls, fitting_type=None):
         """Get an in-memory source:[sinks] mapping"""
         result = {}
-        for record in cls.filter(pipe_type=pipe_type or cls.DEFAULT_PIPE_TYPE):
+        for record in cls.filter(fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE):
             result.setdefault(record.source, []).append(record.sink)
         return result
 
 class PipeElement(object):
     """Mix-in providing pipe-fitting manipulations
     
-    A DEFAULT_PIPE_TYPE is defined, this is the pipe type 
+    A DEFAULT_FITTING_TYPE is defined, this is the pipe type 
     that will be assumed for these APIs, cases where there 
     is really just one type of pipe can thus ignore the 
-    pipe_type arguments entirely.
+    fitting_type arguments entirely.
     """
-    DEFAULT_PIPE_TYPE = Fitting.DEFAULT_PIPE_TYPE
-    def sources(self, pipe_type=None):
-        """Retrieve all currently fitted sources"""
-        return Fitting.sources(self, pipe_type=pipe_type or self.DEFAULT_PIPE_TYPE)
-    def sinks(self, pipe_type=None):
-        """Retrieve all current fitted sinks"""
-        return Fitting.sinks(self, pipe_type=pipe_type or self.DEFAULT_PIPE_TYPE)
-    def detach(self, pipe_type=None):
-        self.sources(pipe_type=pipe_type).delete()
-        self.sinks(pipe_type=pipe_type).delete()
+    DEFAULT_FITTING_TYPE = Fitting.DEFAULT_FITTING_TYPE
+    def _sources(self, fitting_type=None):
+        return Fitting.sources(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
+    def sources(self, fitting_type=None):
+        """Retrieve all currently fitted sources (the actual objects)"""
+        return [f.source for f in self._sources(fitting_type)]
+    def _sinks(self, fitting_type=None):
+        return Fitting.sinks(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
+    def sinks(self, fitting_type=None):
+        """Retrieve all current fitted sinks (the actual objects)"""
+        return [f.sink for f in self._sinks(fitting_type)]
+    def detach_sources(self, fitting_type=None):
+        self._sources(fitting_type=fitting_type).delete()
+    def detach_sinks(self, fitting_type=None):
+        self._sinks(fitting_type=fitting_type).delete()
+    def detach(self, fitting_type=None):
+        self.detach_sources(fitting_type=fitting_type)
+        self.detach_sinks(fitting_type=fitting_type)
         return self
-    def pipe_into(self, other, clear=True, pipe_type=None):
+    
+    def pipe_to(self, other, clear=True, fitting_type=None):
         """Pipe this element into another
         
         clear -- if True, delete all current outgoing pipes
         """
         if clear:
-            self.sinks(pipe_type=pipe_type).delete()
+            self._sinks(fitting_type=fitting_type).delete()
         return Fitting.objects.create(
             source = self, 
             sink = other, 
-            pipe_type=pipe_type or self.DEFAULT_PIPE_TYPE, 
+            fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE, 
         )
-    def pipe_from(self, other, clear=True, pipe_type=None):
+    # alias
+    pipe_into = pipe_to
+    def pipe_from(self, other, clear=True, fitting_type=None):
         """Pipe this element from another element
         
         clear -- if True, delete all current incoming pipes
         """
         if clear:
-            self.sources(pipe_type=pipe_type).delete()
-        return other.pipe_into(self, clear=False, pipe_type=pipe_type)
+            self._sources(fitting_type=fitting_type).delete()
+        return other.pipe_to(self, clear=False, fitting_type=fitting_type)
+    @classmethod
+    def no_sources(cls, fitting_type=None):
+        # find all instances of cls where there is no mapping to this 
+        # instance...
+        ct = ContentType.objects.get_for_model(cls)
+        maps = Fitting.objects.filter(sink_type=ct).filter(
+            fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE
+        ).all()
+        ids = [f.target_id for f in maps]
+        return cls.objects.exclude(id__in=ids)
 
 from django.db.models.signals import pre_delete
 from django.dispatch.dispatcher import receiver
 @receiver(pre_delete)
-def unlink_fittings_on_deletion(sender, **named):
+def unlink_fittings_on_deletion(sender, instance=None,  **named):
     """Unlink any fitting registered for a to-delete sender
     
     NOTE: this runs on *every* deletion of *any* record, this 
     is a bit of a huge club to solve a minor issue, but it should
     prevent dangling references and doesn't affect my use cases.
     """
-    if not isinstance(sender, Fitting):
-        Fitting.objects.filter(source=sender).delete()
-        Fitting.objects.filter(sink=sender).delete()
+    if not isinstance(instance, Fitting) and isinstance(instance,models.Model):
+        ct = ContentType.objects.get_for_model(sender)
+        try:
+            int(instance.pk)
+        except ValueError:
+            # obviously not compatible, so skip it...
+            return 
+        Fitting.objects.filter(source_type=ct, source_id=instance.pk).delete()
+        Fitting.objects.filter(sink_type=ct, sink_id =instance.pk).delete()
