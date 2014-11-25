@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
 
@@ -148,7 +148,11 @@ def unlink_fittings_on_deletion(sender, instance=None,  **named):
     prevent dangling references and doesn't affect my use cases.
     """
     if not isinstance(instance, Fitting) and isinstance(instance,models.Model):
-        ct = ContentType.objects.get_for_model(sender)
+        try:
+            ct = ContentType.objects.get_for_model(sender)
+        except transaction.TransactionManagementError:
+            # migration where get_for_model fails due to lack of transactionality
+            return
         try:
             int(instance.pk)
         except ValueError:
