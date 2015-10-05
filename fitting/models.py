@@ -1,6 +1,9 @@
 from django.db import models, transaction
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes import generic
+try:
+    from django.contrib.contenttypes import fields as generic 
+except ImportError:
+    from django.contrib.contenttypes import generic
 
 class Fitting(models.Model):
     """A directional fitting in a pipeline
@@ -58,7 +61,7 @@ class Fitting(models.Model):
             sink_type=ct,
             sink_id = instance.pk, 
             fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE 
-        )
+        ).order_by('source_type__id', 'source_id')
     @classmethod
     def sinks(cls, instance, fitting_type=None):
         """Retrieve fittings for all current fitted sinks"""
@@ -67,7 +70,7 @@ class Fitting(models.Model):
             source_type=ct,
             source_id = instance.pk, 
             fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE 
-        )
+        ).order_by('sink_type__id', 'sink_id' )
     @classmethod 
     def mapping(cls, fitting_type=None):
         """Get an in-memory source:[sinks] mapping"""
