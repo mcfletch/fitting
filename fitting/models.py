@@ -56,6 +56,22 @@ class Fitting(models.Model):
     sink = generic.GenericForeignKey(
         'sink_type', 'sink_id', 
     )
+    def __json__(self):
+        return {
+            'pk':self.pk, 
+            'type': self.__class__.__name__, 
+            'fitting_type':self.fitting_type, 
+            'source': {
+                'app': self.source_type.app_label, 
+                'type': self.source_type.model, 
+                'pk': self.source_id, 
+            }, 
+            'sink': {
+                'app': self.sink_type.app_label, 
+                'type': self.sink_type.model, 
+                'pk': self.sink_id, 
+            }
+        }
     @classmethod
     def sources(cls, instance,  fitting_type=None):
         """Retrieve fittings for all currently fitted sources"""
