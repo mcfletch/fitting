@@ -1,5 +1,7 @@
 from django.db import models, transaction
 from django.contrib.contenttypes.models import ContentType
+import logging 
+log = logging.getLogger(__name__)
 try:
     from django.contrib.contenttypes import fields as generic 
 except ImportError:
@@ -42,7 +44,8 @@ class Fitting(models.Model):
     )
     sink_type = models.ForeignKey(
         ContentType,
-        null=False,blank=False,
+        null=False,
+        blank=False,
         db_index=True,
         related_name="fitting_sink_types"
     )
@@ -161,5 +164,8 @@ def unlink_fittings_on_deletion(sender, instance=None,  **named):
         except ValueError:
             # obviously not compatible, so skip it...
             return 
-        Fitting.objects.filter(source_type=ct, source_id=instance.pk).delete()
-        Fitting.objects.filter(sink_type=ct, sink_id =instance.pk).delete()
+        try:
+            Fitting.objects.filter(source_type=ct, source_id=instance.pk).delete()
+            Fitting.objects.filter(sink_type=ct, sink_id =instance.pk).delete()
+        except Exception:
+            log.exception("Unable to cleanup Fittings after deletion, likely running in a migration")
