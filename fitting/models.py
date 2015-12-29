@@ -111,12 +111,24 @@ class PipeElement(object):
         return Fitting.sources(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
     def sources(self, fitting_type=None):
         """Retrieve all currently fitted sources (the actual objects)"""
-        return [f.source for f in self._sources(fitting_type)]
+        result = []
+        for f in self._sources(fitting_type):
+            try:
+                result.append( f.source )
+            except AttributeError:
+                f.delete()
+        return result
     def _sinks(self, fitting_type=None):
         return Fitting.sinks(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
     def sinks(self, fitting_type=None):
         """Retrieve all current fitted sinks (the actual objects)"""
-        return [f.sink for f in self._sinks(fitting_type)]
+        result = []
+        for f in self._sinks(fitting_type):
+            try:
+                result.append(f.sink)
+            except AttributeError:
+                f.delete()
+        return result
     def detach_sources(self, fitting_type=None):
         self._sources(fitting_type=fitting_type).delete()
     def detach_sinks(self, fitting_type=None):
