@@ -1,6 +1,6 @@
 from django.db import models, transaction
 from django.contrib.contenttypes.models import ContentType
-import logging 
+import logging, contextlib, functools
 log = logging.getLogger(__name__)
 try:
     from django.contrib.contenttypes import fields as generic 
@@ -94,9 +94,60 @@ class Fitting(models.Model):
     def mapping(cls, fitting_type=None):
         """Get an in-memory source:[sinks] mapping"""
         result = {}
-        for record in cls.filter(fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE):
+        for record in cls.objects.filter(fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE):
             result.setdefault(record.source, []).append(record.sink)
         return result
+
+class PipeMapping( object ):
+    """Cache for in-memory hierarchic structure handling"""
+    def __init__(self,mapping=None,fitting_type=None):
+        self.fitting_type = fitting_type or Fitting.DEFAULT_FITTING_TYPE
+        if mapping is None:
+            mapping = Fitting.mapping(fitting_type=self.fitting_type)
+        self.mapping = mapping
+        self.reverse = {}
+        for source,sinks in mapping.items():
+            for sink in sinks:
+                self.reverse.setdefault(sink,[]).append(source)
+    def sources(self,record):
+        return self.reverse.get(record,[])
+    def sinks(self,record):
+        return self.mapping.get(record,[])
+
+
+
+def with_cache( *cache_args,**cache_named ):
+    """Use a PipeMapping cache on PipeElement to speed up hierarchy-heavy operations
+    
+    @with_cache()
+    def function(records):
+        for r in records:
+            r.sources()
+            for item in r.sinks():
+                blah...
+    """
+    def wrapper( function ):
+        @functools.wraps( function )
+        def with_wrapper( *args, **named ):
+            with cache( *cache_args, **cache_named ):
+                return function(*args,**named)
+        return with_wrapper 
+    return wrapper 
+
+@contextlib.contextmanager
+def cache( *args, **named ):
+    if not PipeElement._pipe_mapping:
+        PipeElement._pipe_mapping = PipeMapping(*args,**named)
+        delete = True
+    else:
+        delete = False
+    yield 
+    if delete:
+        try:
+            PipeElement._pipe_mapping = None
+        except AttributeError:
+            pass
+    
 
 class PipeElement(object):
     """Mix-in providing pipe-fitting manipulations
@@ -106,11 +157,15 @@ class PipeElement(object):
     is really just one type of pipe can thus ignore the 
     fitting_type arguments entirely.
     """
+    _pipe_mapping = None
     DEFAULT_FITTING_TYPE = Fitting.DEFAULT_FITTING_TYPE
     def _sources(self, fitting_type=None):
         return Fitting.sources(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
     def sources(self, fitting_type=None):
         """Retrieve all currently fitted sources (the actual objects)"""
+        fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE
+        if self._pipe_mapping and self._pipe_mapping.fitting_type == fitting_type:
+            return self._pipe_mapping.sources( self )
         result = []
         for f in self._sources(fitting_type):
             try:
@@ -122,6 +177,9 @@ class PipeElement(object):
         return Fitting.sinks(self, fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE)
     def sinks(self, fitting_type=None):
         """Retrieve all current fitted sinks (the actual objects)"""
+        fitting_type=fitting_type or self.DEFAULT_FITTING_TYPE
+        if self._pipe_mapping and self._pipe_mapping.fitting_type == fitting_type:
+            return self._pipe_mapping.sinks( self )
         result = []
         for f in self._sinks(fitting_type):
             try:
@@ -170,6 +228,27 @@ class PipeElement(object):
         ).all()
         ids = [f.target_id for f in maps]
         return cls.objects.exclude(id__in=ids)
+
+    def iter_ancestors(self,fitting_type=None,seen=None):
+        seen = seen or set()
+        for source in self.sources(fitting_type):
+            if source not in seen:
+                yield source 
+                seen.add(source)
+                for anc in source.iter_ancestors( fitting_type, seen ):
+                    yield anc 
+    def ancestors(self,fitting_type=None):
+        return list(self.iter_ancestors(fitting_type))
+    def iter_descendants(self,fitting_type=None,seen=None):
+        seen = seen or set()
+        for source in self.sinks(fitting_type):
+            if source not in seen:
+                yield source 
+                seen.add(source)
+                for anc in source.iter_descendants( fitting_type, seen):
+                    yield anc 
+    def descendants(self,fitting_type=None):
+        return list(self.iter_descendants(fitting_type))
 
 from django.db.models.signals import pre_delete
 from django.dispatch.dispatcher import receiver
