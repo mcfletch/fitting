@@ -110,9 +110,9 @@ class PipeMapping( object ):
             for sink in sinks:
                 self.reverse.setdefault(sink,[]).append(source)
     def sources(self,record):
-        return self.reverse.get(record,[])
+        return self.reverse.get(record,[]) if record.id else []
     def sinks(self,record):
-        return self.mapping.get(record,[])
+        return self.mapping.get(record,[]) if record.id else []
 
 
 
