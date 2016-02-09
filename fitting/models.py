@@ -95,7 +95,15 @@ class Fitting(models.Model):
         """Get an in-memory source:[sinks] mapping"""
         result = {}
         for record in cls.objects.filter(fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE):
-            result.setdefault(record.source, []).append(record.sink)
+            try:
+                result.setdefault(record.source, []).append(record.sink)
+            except AttributeError:
+                log.error(
+                    "Fitting #%s references a deleted content-type: %s or %s", 
+                    record.id, 
+                    record.source_type_id,
+                    record.sink_type_id,
+                )
         return result
 
 class PipeMapping( object ):
