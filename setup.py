@@ -1,11 +1,15 @@
 import os
 
 from setuptools import setup, find_packages
+version = '1.0.0'
+for _line in open( os.path.join( os.path.dirname(__file__),'fitting','version.py')):
+    if _line.startswith('__version__'):
+        version = _line.split('=')[1].strip('"\'')
 
 if __name__ == "__main__":
     setup(
         name='fitting',
-        version='1.0.0',
+        version=version,
         description='fitting',
         long_description='fitting',
         classifiers=[
