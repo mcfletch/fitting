@@ -270,7 +270,10 @@ def unlink_fittings_on_deletion(sender, instance=None,  **named):
     """
     if not isinstance(instance, Fitting) and isinstance(instance,models.Model):
         if hasattr( instance, 'fitting_cleanup' ):
-            instance.fitting_cleanup()
+            try:
+                instance.fitting_cleanup()
+            except Exception:
+                log.exception("Failure cleaning up %s instance: %s", sender, instance )
         try:
             ct = ContentType.objects.get_for_model(sender)
         except transaction.TransactionManagementError:
