@@ -121,8 +121,16 @@ class PipeMapping( object ):
         return self.reverse.get(record,[]) if record.id else []
     def sinks(self,record):
         return self.mapping.get(record,[]) if record.id else []
-
-
+    def replace(self,record):
+        """Replace the given record in our mappings"""
+        for source in [self.mapping,self.reverse]:
+            for key,value in source.items():
+                if key.id == record.id and isinstance(record,key.__class__):
+                    del source[key]
+                    source[record] = value
+                for i,v in enumerate(value):
+                    if v.id == record.id and isinstance(record,v.__class__):
+                        value[i] = record
 
 def with_cache( *cache_args,**cache_named ):
     """Use a PipeMapping cache on PipeElement to speed up hierarchy-heavy operations
