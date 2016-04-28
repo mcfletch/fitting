@@ -3,9 +3,9 @@ from django.contrib.contenttypes.models import ContentType
 import logging, contextlib, functools
 log = logging.getLogger(__name__)
 try:
-    from django.contrib.contenttypes import fields as generic 
+    from django.contrib.contenttypes import fields as generic, models as ct_models
 except ImportError:
-    from django.contrib.contenttypes import generic
+    from django.contrib.contenttypes import generic, models as ct_models
 
 class Fitting(models.Model):
     """A directional fitting in a pipeline
@@ -92,19 +92,41 @@ class Fitting(models.Model):
         ).order_by('sink_type__id', 'sink_id' )
     @classmethod 
     def mapping(cls, fitting_type=None):
-        """Get an in-memory source:[sinks] mapping"""
-        result = {}
-        for record in cls.objects.filter(fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE):
-            try:
-                result.setdefault(record.source, []).append(record.sink)
-            except AttributeError:
-                log.error(
-                    "Fitting #%s references a deleted content-type: %s or %s", 
-                    record.id, 
-                    record.source_type_id,
-                    record.sink_type_id,
-                )
-        return result
+        """Get an in-memory source:[sinks] mapping
+        
+        Note: this does a lot of internal book-keeping to minimize the 
+        number of queries performed by loading all targets of a particular
+        type at once, then doing a source:sink mapping from that set.
+        """
+        records = cls.objects.filter(
+            fitting_type=fitting_type or cls.DEFAULT_FITTING_TYPE
+        ).values( 'sink_type_id','sink_id', 'source_type_id','source_id' )
+        type_map = {}
+        for record in records:
+            type_map.setdefault( record['sink_type_id'],[]).append(record['sink_id'])
+            type_map.setdefault( record['source_type_id'],[]).append(record['source_id'])
+        cts = dict([(ct.id,ct) for ct in ct_models.ContentType.objects.filter(
+            id__in = type_map.keys()
+        ).all()])
+        
+        object_map = {}
+        for (contenttype_id,ids) in type_map.items():
+            ct = cts.get(contenttype_id)
+            if not ct:
+                log.warn("Fitting references a deleted content-type")
+                continue
+            for target in ct.model_class().objects.filter(
+                pk__in = ids 
+            ):
+                object_map[(contenttype_id,target.id)] = target 
+        
+        final_mapping = {}
+        for record in records:
+            source = object_map.get((record['source_type_id'],record['source_id']))
+            sink = object_map.get((record['sink_type_id'],record['sink_id']))
+            if source and sink:
+                final_mapping.setdefault( source,[]).append( sink )
+        return final_mapping
 
 class PipeMapping( object ):
     """Cache for in-memory hierarchic structure handling"""
