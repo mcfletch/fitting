@@ -115,9 +115,13 @@ class Fitting(models.Model):
             if not ct:
                 log.warn("Fitting references a deleted content-type")
                 continue
-            for target in ct.model_class().objects.filter(
+            model_cls = ct.model_class()
+            query = model_cls.objects.filter(
                 pk__in = ids 
-            ):
+            )
+            if getattr(model_cls,'default_prefetch',None):
+                query = query.prefetch_related( *model_cls.default_prefetch )
+            for target in list(query.all()):
                 object_map[(contenttype_id,target.id)] = target 
         
         final_mapping = {}
