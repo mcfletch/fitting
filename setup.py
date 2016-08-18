@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 version = '1.0.0'
 for _line in open( os.path.join( os.path.dirname(__file__),'fitting','version.py')):
     if _line.startswith('__version__'):
-        version = _line.split('=')[1].strip('"\'')
+        version = _line.split('=')[1].strip().strip('"\'')
 
 if __name__ == "__main__":
     setup(
