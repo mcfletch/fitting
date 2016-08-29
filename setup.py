@@ -41,7 +41,7 @@ if __name__ == "__main__":
         install_requires=[
             'django',
             'django-annoying',
-            'south',
+            #'south',
         ],
         scripts = [
         ],
