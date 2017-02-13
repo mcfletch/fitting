@@ -302,6 +302,8 @@ def unlink_fittings_on_deletion(sender, instance=None,  **named):
     is a bit of a huge club to solve a minor issue, but it should
     prevent dangling references and doesn't affect my use cases.
     """
+    if getattr( instance, 'no_fittings', None ):
+        return 
     if not isinstance(instance, Fitting) and isinstance(instance,models.Model):
         if hasattr( instance, 'fitting_cleanup' ):
             try:
