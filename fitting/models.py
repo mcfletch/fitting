@@ -304,7 +304,7 @@ def unlink_fittings_on_deletion(sender, instance=None,  **named):
     """
     if getattr( instance, 'no_fittings', None ):
         return 
-    if not isinstance(instance, Fitting) and isinstance(instance,models.Model):
+    if isinstance(instance, PipeElement) and isinstance(instance,models.Model):
         if hasattr( instance, 'fitting_cleanup' ):
             try:
                 instance.fitting_cleanup()
