@@ -18,8 +18,8 @@ class Migration(migrations.Migration):
                 ('fitting_type', models.IntegerField(default=1, verbose_name=b'Pipe Type', db_index=True)),
                 ('source_id', models.PositiveIntegerField(db_index=True)),
                 ('sink_id', models.PositiveIntegerField(db_index=True)),
-                ('sink_type', models.ForeignKey(related_name='fitting_sink_types', to='contenttypes.ContentType')),
-                ('source_type', models.ForeignKey(related_name='fitting_source_types', to='contenttypes.ContentType')),
+                ('sink_type', models.ForeignKey(related_name='fitting_sink_types', to='contenttypes.ContentType',on_delete=models.CASCADE)),
+                ('source_type', models.ForeignKey(related_name='fitting_source_types', to='contenttypes.ContentType',on_delete=models.CASCADE)),
             ],
         ),
         migrations.AlterUniqueTogether(

@@ -33,7 +33,8 @@ class Fitting(models.Model):
         ContentType,
         null=False,blank=False,
         db_index=True,
-        related_name="fitting_source_types"
+        related_name="fitting_source_types",
+        on_delete=models.CASCADE,
     )
     source_id = models.PositiveIntegerField(
         null=False,blank=False,
@@ -47,7 +48,8 @@ class Fitting(models.Model):
         null=False,
         blank=False,
         db_index=True,
-        related_name="fitting_sink_types"
+        related_name="fitting_sink_types",
+        on_delete=models.CASCADE,
     )
     sink_id = models.PositiveIntegerField(
         null=False,blank=False,
@@ -260,6 +262,7 @@ class PipeElement(object):
         if clear:
             self._sources(fitting_type=fitting_type).delete()
         return other.pipe_to(self, clear=False, fitting_type=fitting_type)
+
     @classmethod
     def no_sources(cls, fitting_type=None):
         # find all instances of cls where there is no mapping to this 
